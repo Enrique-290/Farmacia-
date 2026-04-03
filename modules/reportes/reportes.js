@@ -256,8 +256,6 @@ const elBtnRemoveBanner2 = document.getElementById('btnRemoveBanner2');
 function renderLogoPreview(){
   if(!elCfgLogoPreview || !elCfgLogoPreviewWrap) return;
   const logo = state.config.logoDataUrl || '';
-  const banner1 = state.config.webBanner1 || '';
-  const banner2 = state.config.webBanner2 || '';
   const ok = typeof logo === 'string' && logo.startsWith('data:image/');
   if(ok){
     elCfgLogoPreview.src = logo;
@@ -458,6 +456,53 @@ function renderWebProductsPicker(){
   });
 }
 
+
+function renderWebBannerPreview(el, src, emptyLabel){
+  if(!el) return;
+  if(typeof src === 'string' && src.startsWith('data:image/')){
+    el.innerHTML = `<img src="${src}" alt="Banner">`;
+  }else{
+    el.textContent = emptyLabel;
+  }
+}
+
+function loadWebBanners(){
+  renderWebBannerPreview(elWebBanner1Preview, state.config.webBanner1 || '', 'Sin banner 1');
+  renderWebBannerPreview(elWebBanner2Preview, state.config.webBanner2 || '', 'Sin banner 2');
+}
+
+function bindWebBannerInput(inputEl, stateKey, previewEl, emptyLabel){
+  if(!inputEl) return;
+  inputEl.addEventListener('change', () => {
+    const file = inputEl.files && inputEl.files[0];
+    if(!file) return;
+    if(!String(file.type || '').startsWith('image/')){
+      alert('Selecciona una imagen válida para el banner.');
+      inputEl.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      if(!result.startsWith('data:image/')){
+        alert('No se pudo leer la imagen del banner.');
+        inputEl.value = '';
+        return;
+      }
+      state.config[stateKey] = result;
+      saveState();
+      renderWebBannerPreview(previewEl, result, emptyLabel);
+      renderWebPreview();
+      inputEl.value = '';
+    };
+    reader.onerror = () => {
+      alert('Hubo un problema al cargar el banner.');
+      inputEl.value = '';
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function renderWebPreview(){
   if (!elWebPreview) return;
   const title = state.config.webTitle || state.config.negocio || 'Farmacia DP';
@@ -466,6 +511,9 @@ function renderWebPreview(){
   const cta = state.config.webCTA || 'Pedir por WhatsApp';
   const addr = state.config.webAddress || state.config.direccion || '';
   const productos = getSelectedWebProducts();
+  const banner1 = state.config.webBanner1 || '';
+  const banner2 = state.config.webBanner2 || '';
+  const categorias = Array.from(new Set(productos.map(p => p.categoria || 'General'))).slice(0, 6);
   const productosHtml = productos.length
     ? productos.map(p => `<div class="web-mini-product"><strong>${escapeHtml(p.nombre || 'Producto')}</strong><span>${money(p.precioVenta || p.precio || 0)}</span><span>Stock: ${Number(p.stockPiso ?? p.stock ?? 0)}</span><em>Publicado manualmente</em></div>`).join('')
     : '<div class="web-card">Agrega productos en inventario para verlos aquí.</div>';
@@ -475,6 +523,28 @@ function renderWebPreview(){
       <h3>${escapeHtml(title)}</h3>
       <p>${escapeHtml(desc)}</p>
     </div>
+
+    <div class="web-preview-banner-row">
+      <div class="web-preview-banner">
+        ${banner1 ? `<img src="${banner1}" alt="Banner 1">` : `<div class="web-preview-banner-fallback">💊</div>`}
+        <div class="web-preview-banner-copy">
+          <strong>Promociones y productos</strong>
+          <span>Destaca lo mejor de tu farmacia</span>
+        </div>
+      </div>
+      <div class="web-preview-banner">
+        ${banner2 ? `<img src="${banner2}" alt="Banner 2">` : `<div class="web-preview-banner-fallback">🛍️</div>`}
+        <div class="web-preview-banner-copy">
+          <strong>Pedidos por WhatsApp</strong>
+          <span>Rápido y directo</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="web-preview-cats">
+      ${categorias.map(cat => `<span>${escapeHtml(cat)}</span>`).join('')}
+    </div>
+
     <div class="web-card">
       <strong>Contacto</strong>
       <div style="font-size:13px;color:#475569;margin-top:6px;">${escapeHtml(addr || 'Sin dirección capturada')}</div>
@@ -516,17 +586,16 @@ function generarHtmlWeb(){
   const logo = state.config.logoDataUrl || '';
   const banner1 = state.config.webBanner1 || '';
   const banner2 = state.config.webBanner2 || '';
-  const productos = getSelectedWebProducts(99).map(p => ({
-    id: getWebProductId(p),
+  const productos = getSelectedWebProducts().map(p => ({
     nombre: p.nombre || 'Producto',
-    precioNum: Number(p.precio || p.precioVenta || 0) || 0,
-    precio: money(p.precio || p.precioVenta || 0),
+    precio: money(p.precioVenta || p.precio || 0),
     stock: Number(p.stockPiso ?? p.stock ?? 0),
-    categoria: p.categoria || 'Sin categoría',
+    categoria: p.categoria || 'General',
     imagen: getWebProductImage(p)
   }));
   const categorias = Array.from(new Set(productos.map(p => p.categoria || 'General'))).slice(0, 8);
-
+  const cards = productos.map(p => `<article class="item"><div class="media">${p.imagen ? `<img src="${p.imagen}" alt="${escapeHtml(p.nombre)}">` : '💊'}</div><h3>${escapeHtml(p.nombre)}</h3><p>${escapeHtml(p.precio)}</p><small>Stock: ${p.stock}</small></article>`).join('');
+  const waLink = wa ? `https://wa.me/${wa}` : '#';
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -535,185 +604,54 @@ function generarHtmlWeb(){
 <title>${escapeHtml(title)}</title>
 <style>
 body{font-family:Arial,sans-serif;margin:0;background:#f8fbff;color:#0f172a}
-.top{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #e5e7eb;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.brand{display:flex;align-items:center;gap:10px}
-.logo{width:48px;height:48px;border-radius:14px;background:#eff6ff;border:1px solid #dbeafe;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#2563eb;font-weight:800}
-.logo img{width:100%;height:100%;object-fit:contain;padding:6px;background:#fff}
-.cartbtn{border:none;border-radius:999px;padding:10px 14px;background:#0f172a;color:#fff;font-weight:700;cursor:pointer}
-.count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:999px;background:#fff;color:#0f172a;font-size:12px;margin-left:8px;padding:0 6px}
-.hero{background:linear-gradient(135deg,#1d4ed8,#60a5fa);color:#fff;padding:28px 16px}
-.bannerwrap{padding:14px 16px 0}
-.bannermain{display:grid;grid-template-columns:1.45fr .95fr;gap:12px}
-.bannercard{border-radius:20px;overflow:hidden;background:#dbeafe;min-height:150px;position:relative;display:flex;align-items:flex-end;justify-content:flex-start;color:#fff}
-.bannercard img{width:100%;height:100%;object-fit:cover;display:block}
-.overlay{position:absolute;inset:auto 0 0 0;padding:18px 16px;background:linear-gradient(180deg,rgba(15,23,42,0) 0%, rgba(15,23,42,.65) 100%)}
-.chip{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.18);font-size:12px;font-weight:700}
-main{max-width:1180px;margin:0 auto;padding:0 0 22px}
-.contact{margin:14px 16px 0;padding:14px;background:#fff;border:1px solid #e5e7eb;border-radius:18px}
-.cats{display:flex;gap:8px;flex-wrap:wrap;padding:14px 16px 0}
-.cat{border:1px solid #dbeafe;background:#fff;color:#1d4ed8;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700}
-.sectionhead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 16px 0}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:16px}
-.item{border:1px solid #e5e7eb;border-radius:18px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
-.media{height:160px;background:#eff6ff;display:flex;align-items:center;justify-content:center;color:#2563eb;font-size:34px}
-.media img{width:100%;height:100%;object-fit:cover;display:block}
-.body{padding:12px}
-.title{font-size:15px;font-weight:700}
-.meta{font-size:12px;color:#64748b;margin-top:4px}
-.price{font-size:17px;font-weight:800;color:#1d4ed8;margin-top:8px}
-.note{font-size:11px;color:#2563eb;font-weight:700;margin-top:6px}
-.actions{display:flex;gap:8px;margin-top:10px}
-.btn{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border:none;border-radius:999px;cursor:pointer;flex:1}
-.btn.secondary{background:#eff6ff;color:#1d4ed8}
-.drawer{position:fixed;top:0;right:0;width:min(360px,92%);height:100%;background:#fff;border-left:1px solid #dbeafe;box-shadow:-10px 0 30px rgba(15,23,42,.08);transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column;z-index:20}
-.drawer.open{transform:translateX(0)}
-.dhead{display:flex;justify-content:space-between;align-items:center;padding:14px;border-bottom:1px solid #e5e7eb}
-.close{border:none;background:#eff6ff;color:#1d4ed8;width:34px;height:34px;border-radius:999px;cursor:pointer;font-weight:800}
-.items{flex:1;overflow:auto;padding:12px 14px}
-.line{display:grid;grid-template-columns:1fr auto;gap:10px;padding:10px 0;border-bottom:1px dashed #e5e7eb}
-.line small{display:block;color:#64748b;margin-top:4px}
-.qty{display:flex;gap:6px;align-items:center;margin-top:8px}
-.qty button{width:28px;height:28px;border:none;border-radius:999px;background:#eff6ff;color:#1d4ed8;cursor:pointer;font-weight:800}
-.footer{padding:14px;border-top:1px solid #e5e7eb}
-.total{display:flex;justify-content:space-between;align-items:center;font-weight:800;margin-bottom:12px}
-.empty{padding:20px 8px;color:#64748b;text-align:center;font-size:13px}
-@media(max-width:720px){.grid{grid-template-columns:1fr}.bannermain{grid-template-columns:1fr}}
+header{background:linear-gradient(135deg,#1d4ed8,#60a5fa);color:#fff;padding:40px 20px}
+header .brand{display:flex;align-items:center;gap:10px}
+header .logo{width:46px;height:46px;border-radius:14px;background:#fff;color:#2563eb;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:800}
+header .logo img{width:100%;height:100%;object-fit:contain;padding:6px;background:#fff}
+main{max-width:1100px;margin:0 auto;padding:24px 20px}
+a.btn{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border-radius:999px;margin-top:14px}
+.panel{background:#fff;border:1px solid #dbeafe;border-radius:18px;padding:18px;box-shadow:0 10px 25px rgba(15,23,42,.06)}
+.banner-row{display:grid;grid-template-columns:1.25fr .75fr;gap:12px;margin-top:18px}
+.banner{border-radius:18px;overflow:hidden;background:#dbeafe;min-height:150px;position:relative}
+.banner img{width:100%;height:100%;object-fit:cover;display:block}
+.banner .fb{min-height:150px;display:flex;align-items:center;justify-content:center;font-size:36px;color:#2563eb}
+.banner .copy{position:absolute;inset:auto 0 0 0;padding:16px;background:linear-gradient(180deg,rgba(15,23,42,0) 0%, rgba(15,23,42,.68) 100%);color:#fff}
+.cats{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.cats span{display:inline-flex;align-items:center;padding:7px 11px;border-radius:999px;border:1px solid #dbeafe;background:#fff;color:#1d4ed8;font-size:12px;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:16px}
+.item{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:14px}
+.item .media{height:130px;background:#eff6ff;border-radius:12px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;color:#2563eb;font-size:30px;overflow:hidden}
+.item .media img{width:100%;height:100%;object-fit:cover;display:block}
+.item h3{margin:0 0 8px;font-size:16px}
+.muted{color:#475569}
+.footer{padding:24px 20px;color:#64748b;text-align:center}
+@media(max-width:720px){.banner-row{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<div class="top">
+<header>
   <div class="brand">
     <div class="logo">${logo ? `<img src="${logo}" alt="Logo">` : 'Rx'}</div>
-    <div><strong style="display:block;">${escapeHtml(title)}</strong><small style="color:#64748b">Catálogo web simple</small></div>
-  </div>
-  <button class="cartbtn" id="cartBtn">🛒 Carrito <span class="count" id="cartCount">0</span></button>
-</div>
-<div class="hero">
-  <h1 style="margin:0">${escapeHtml(title)}</h1>
-  <p style="margin:8px 0 0">${escapeHtml(desc)}</p>
-</div>
-<div class="bannerwrap">
-  <div class="bannermain">
-    <div class="bannercard">${banner1 ? `<img src="${banner1}" alt="Banner 1">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">💊</div>`}<div class="overlay"><span class="chip">Promociones destacadas</span><div style="margin-top:10px;font-size:22px;font-weight:800;">Salud y ahorro cerca de ti</div></div></div>
-    <div class="bannercard">${banner2 ? `<img src="${banner2}" alt="Banner 2">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">🛍️</div>`}<div class="overlay"><span class="chip">Pedidos por WhatsApp</span><div style="margin-top:10px;font-size:18px;font-weight:800;">Arma tu carrito y envía tu pedido</div></div></div>
-  </div>
-</div>
-<main>
-  <section class="contact">
-    <strong>Contacto</strong>
-    <div style="font-size:13px;color:#475569;margin-top:6px;">${escapeHtml(addr || 'Sin dirección capturada')}</div>
-    <div style="font-size:13px;color:#475569;margin-top:4px;">WhatsApp: ${escapeHtml(wa || 'Sin número')}</div>
-  </section>
-  <section class="cats">${categorias.map(cat => `<span class="cat">${escapeHtml(cat)}</span>`).join('')}</section>
-  <section class="sectionhead"><strong>Productos destacados</strong><span>${productos.length} publicados</span></section>
-  <section class="grid" id="catalogGrid"></section>
-</main>
-
-<aside class="drawer" id="drawer">
-  <div class="dhead">
-    <strong>Tu carrito</strong>
-    <button class="close" id="closeBtn" type="button">×</button>
-  </div>
-  <div class="items" id="cartItems"></div>
-  <div class="footer">
-    <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
-    <button class="btn" id="sendBtn" type="button">${escapeHtml(cta)}</button>
-  </div>
-</aside>
-
-<script>
-const productos = ${JSON.stringify(productos)};
-const wa = ${JSON.stringify(wa)};
-const title = ${JSON.stringify(title)};
-const cart = {};
-
-const fmt = v => '$' + (Number(v)||0).toFixed(2);
-const $grid = document.getElementById('catalogGrid');
-const $drawer = document.getElementById('drawer');
-const $cartBtn = document.getElementById('cartBtn');
-const $closeBtn = document.getElementById('closeBtn');
-const $cartItems = document.getElementById('cartItems');
-const $cartTotal = document.getElementById('cartTotal');
-const $cartCount = document.getElementById('cartCount');
-const $sendBtn = document.getElementById('sendBtn');
-
-function esc(s=''){return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-function renderCatalog(){
-  $grid.innerHTML = productos.length ? productos.map(p => `<article class="item">
-    <div class="media">${p.imagen ? `<img src="${p.imagen}" alt="${esc(p.nombre)}">` : '💊'}</div>
-    <div class="body">
-      <div class="title">${esc(p.nombre)}</div>
-      <div class="meta">${esc(p.categoria)} · Stock: ${p.stock}</div>
-      <div class="price">${esc(p.precio)}</div>
-      <div class="note">Publicado manualmente</div>
-      <div class="actions"><button class="btn addBtn" type="button" data-id="${esc(p.id)}">Agregar</button><button class="btn secondary" type="button">Ver</button></div>
-    </div>
-  </article>`).join('') : '<div class="empty">No hay productos publicados.</div>';
-
-  document.querySelectorAll('.addBtn').forEach(btn => btn.addEventListener('click', () => {
-    const id = String(btn.dataset.id || '');
-    cart[id] = (cart[id] || 0) + 1;
-    renderCart();
-    $drawer.classList.add('open');
-  }));
-}
-function renderCart(){
-  const items = Object.entries(cart).map(([id, qty]) => {
-    const prod = productos.find(p => p.id === id);
-    if(!prod || qty <= 0) return null;
-    return { ...prod, qty };
-  }).filter(Boolean);
-
-  const count = items.reduce((a,i)=>a+i.qty,0);
-  const total = items.reduce((a,i)=>a+(i.qty*i.precioNum),0);
-
-  $cartCount.textContent = count;
-  $cartTotal.textContent = fmt(total);
-
-  $cartItems.innerHTML = items.length ? items.map(i => `<div class="line">
     <div>
-      <strong>${esc(i.nombre)}</strong>
-      <small>${fmt(i.precioNum)} c/u</small>
-      <div class="qty">
-        <button type="button" class="minusBtn" data-id="${esc(i.id)}">−</button>
-        <span>${i.qty}</span>
-        <button type="button" class="plusBtn" data-id="${esc(i.id)}">+</button>
-      </div>
+      <h1 style="margin:0">${escapeHtml(title)}</h1>
+      <p style="margin:8px 0 0">${escapeHtml(desc)}</p>
     </div>
-    <div><strong>${fmt(i.qty*i.precioNum)}</strong></div>
-  </div>`).join('') : '<div class="empty">Tu carrito está vacío.</div>';
-
-  document.querySelectorAll('.minusBtn').forEach(btn => btn.addEventListener('click', () => {
-    const id = String(btn.dataset.id || '');
-    cart[id] = Math.max((cart[id] || 0) - 1, 0);
-    if(cart[id] <= 0) delete cart[id];
-    renderCart();
-    $drawer.classList.add('open');
-  }));
-  document.querySelectorAll('.plusBtn').forEach(btn => btn.addEventListener('click', () => {
-    const id = String(btn.dataset.id || '');
-    cart[id] = (cart[id] || 0) + 1;
-    renderCart();
-    $drawer.classList.add('open');
-  }));
-
-  $sendBtn.onclick = () => {
-    if(!wa){ alert('No hay número de WhatsApp configurado.'); return; }
-    if(!items.length){ alert('Agrega productos al carrito.'); return; }
-    const lines = items.map(i => '• ' + i.nombre + ' x' + i.qty + ' = ' + fmt(i.qty*i.precioNum));
-    const msg = encodeURIComponent(title + '\nPedido desde la web:\n\n' + lines.join('\n') + '\n\nTotal: ' + fmt(total));
-    window.open('https://wa.me/' + wa + '?text=' + msg, '_blank');
-  };
-}
-$cartBtn.onclick = () => $drawer.classList.add('open');
-$closeBtn.onclick = () => $drawer.classList.remove('open');
-renderCatalog();
-renderCart();
-</script>
+  </div>
+  <a class="btn" href="${waLink}">${escapeHtml(cta)}</a>
+</header>
+<main>
+  <section class="banner-row">
+    <div class="banner">${banner1 ? `<img src="${banner1}" alt="Banner 1">` : `<div class="fb">💊</div>`}<div class="copy"><strong>Promociones y productos</strong></div></div>
+    <div class="banner">${banner2 ? `<img src="${banner2}" alt="Banner 2">` : `<div class="fb">🛍️</div>`}<div class="copy"><strong>Pedidos por WhatsApp</strong></div></div>
+  </section>
+  <section class="cats">${categorias.map(cat => `<span>${escapeHtml(cat)}</span>`).join('')}</section>
+  <section class="panel" style="margin-top:18px;"><h2>Contacto</h2><p class="muted">${escapeHtml(addr || 'Dirección pendiente')}</p><p class="muted">WhatsApp: ${escapeHtml(wa || 'Pendiente')}</p></section>
+  <section style="margin-top:18px;"><h2>Productos publicados</h2><div class="grid">${cards || '<p class="muted">No has seleccionado productos para publicar.</p>'}</div></section>
+</main>
+<div class="footer">Sitio generado desde Farmacia DP</div>
 </body>
 </html>`;
 }
-
 
 if (elBtnGuardarWeb){
   elBtnGuardarWeb.addEventListener('click', () => {
@@ -731,14 +669,14 @@ if (elBtnGuardarWeb){
 
 
 
-handleWebBannerUpload(elWebBanner1File, 'webBanner1', elWebBanner1Preview);
-handleWebBannerUpload(elWebBanner2File, 'webBanner2', elWebBanner2Preview);
+bindWebBannerInput(elWebBanner1File, 'webBanner1', elWebBanner1Preview, 'Sin banner 1');
+bindWebBannerInput(elWebBanner2File, 'webBanner2', elWebBanner2Preview, 'Sin banner 2');
 
 if (elBtnRemoveBanner1){
   elBtnRemoveBanner1.addEventListener('click', () => {
     state.config.webBanner1 = '';
     saveState();
-    loadWebBannerInputs();
+    loadWebBanners();
     renderWebPreview();
   });
 }
@@ -746,7 +684,7 @@ if (elBtnRemoveBanner2){
   elBtnRemoveBanner2.addEventListener('click', () => {
     state.config.webBanner2 = '';
     saveState();
-    loadWebBannerInputs();
+    loadWebBanners();
     renderWebPreview();
   });
 }
@@ -792,58 +730,13 @@ if (elBtnDescargarWeb){
       setTimeout(() => {
         a.remove();
         URL.revokeObjectURL(url);
-      }, 300);
+      }, 500);
     }catch(err){
       console.error('Error al descargar HTML web:', err);
-      alert('No se pudo descargar el HTML. Revisa la consola o vuelve a intentar.');
+      alert('No se pudo descargar el HTML.');
     }
   });
 }
-
-function renderWebBannerPreview(el, src, label='Sin banner'){
-  if(!el) return;
-  const ok = typeof src === 'string' && src.startsWith('data:image/');
-  el.innerHTML = ok ? `<img src="${src}" alt="Banner">` : label;
-}
-
-function loadWebBannerInputs(){
-  renderWebBannerPreview(elWebBanner1Preview, state.config.webBanner1 || '', 'Sin banner 1');
-  renderWebBannerPreview(elWebBanner2Preview, state.config.webBanner2 || '', 'Sin banner 2');
-}
-
-function handleWebBannerUpload(inputEl, key, previewEl){
-  if(!inputEl) return;
-  inputEl.addEventListener('change', (e) => {
-    const file = e.target.files && e.target.files[0];
-    if(!file) return;
-    if(!String(file.type || '').startsWith('image/')){
-      alert('Selecciona una imagen válida para el banner.');
-      inputEl.value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      if(!result.startsWith('data:image/')){
-        alert('No se pudo leer la imagen del banner.');
-        inputEl.value = '';
-        return;
-      }
-      state.config[key] = result;
-      saveState();
-      renderWebBannerPreview(previewEl, result);
-      renderWebPreview();
-      elWebPreview.querySelector('#webCartDrawer')?.classList.add('open');
-      inputEl.value = '';
-    };
-    reader.onerror = () => {
-      alert('Hubo un problema al cargar el banner.');
-      inputEl.value = '';
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 function getWebProductId(prod){
   return String(prod?.id ?? prod?.sku ?? '');
 }
@@ -962,12 +855,9 @@ function renderWebPreview(){
   const addr = state.config.webAddress || state.config.direccion || '';
   const productos = getSelectedWebProducts(50);
   const logo = state.config.logoDataUrl || '';
-  const banner1 = state.config.webBanner1 || '';
-  const banner2 = state.config.webBanner2 || '';
   const cart = getPreviewCartItems();
   const cartCount = cart.reduce((a, item) => a + item.qty, 0);
   const cartTotal = cart.reduce((a, item) => a + item.qty * item.precio, 0);
-  const categorias = Array.from(new Set(productos.map(p => p.categoria || 'General'))).slice(0, 6);
 
   const productosHtml = productos.length
     ? productos.map(p => {
@@ -982,7 +872,6 @@ function renderWebPreview(){
             <div class="web-mini-note">Publicado manualmente</div>
             <div class="web-item-actions">
               <button class="btn btn-primary web-add-cart" type="button" data-id="${escapeHtml(id)}">Agregar</button>
-              <button class="btn web-secondary" type="button">Ver</button>
             </div>
           </div>
         </article>`;
@@ -1022,38 +911,10 @@ function renderWebPreview(){
         <p>${escapeHtml(desc)}</p>
       </div>
 
-      <div class="web-preview-banner-wrap">
-        <div class="web-preview-banner-main">
-          <div class="web-banner-card">
-            ${banner1 ? `<img src="${banner1}" alt="Banner 1">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">💊</div>`}
-            <div class="web-banner-overlay">
-              <span class="web-banner-chip">Promociones destacadas</span>
-              <div style="margin-top:10px;font-size:22px;font-weight:800;">Salud y ahorro cerca de ti</div>
-            </div>
-          </div>
-          <div class="web-banner-card">
-            ${banner2 ? `<img src="${banner2}" alt="Banner 2">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">🛍️</div>`}
-            <div class="web-banner-overlay">
-              <span class="web-banner-chip">Pedidos por WhatsApp</span>
-              <div style="margin-top:10px;font-size:18px;font-weight:800;">Arma tu carrito y envía tu pedido</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="web-preview-categories">
-        ${categorias.map(cat => `<span class="web-cat-pill">${escapeHtml(cat)}</span>`).join('')}
-      </div>
-
       <div class="web-preview-contact">
         <strong>Contacto</strong>
         <div style="font-size:13px;color:#475569;margin-top:6px;">${escapeHtml(addr || 'Sin dirección capturada')}</div>
         <div style="font-size:13px;color:#475569;margin-top:4px;">WhatsApp: ${escapeHtml(wa || 'Sin número')}</div>
-      </div>
-
-      <div class="web-preview-section-head">
-        <strong>Productos destacados</strong>
-        <span>${productos.length} publicados</span>
       </div>
 
       <div class="web-preview-products">${productosHtml}</div>
@@ -1131,7 +992,7 @@ function loadWebForm(){
   elWebWhatsapp.value = state.config.webWhatsapp || '';
   elWebAddress.value = state.config.webAddress || state.config.direccion || '';
   elWebCTA.value = state.config.webCTA || 'Pedir por WhatsApp';
-  loadWebBannerInputs();
+  loadWebBanners();
   renderWebProductsPicker();
   renderWebPreview();
 }
@@ -1161,7 +1022,7 @@ function generarHtmlWeb(){
     categoria: p.categoria || 'Sin categoría',
     imagen: getWebProductImage(p)
   }));
-  const categorias = Array.from(new Set(productos.map(p => p.categoria || 'General'))).slice(0, 8);
+  const waLink = wa ? `https://wa.me/${wa}` : '#';
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -1217,15 +1078,12 @@ main{max-width:1180px;margin:0 auto;padding:0 0 22px}
   <h1 style="margin:0">${escapeHtml(title)}</h1>
   <p style="margin:8px 0 0">${escapeHtml(desc)}</p>
 </div>
-<div class="bannerwrap"><div class="bannermain"><div class="bannercard">${banner1 ? `<img src="${banner1}" alt="Banner 1">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">💊</div>`}<div class="overlay"><span class="chip">Promociones destacadas</span><div style="margin-top:10px;font-size:22px;font-weight:800;">Salud y ahorro cerca de ti</div></div></div><div class="bannercard">${banner2 ? `<img src="${banner2}" alt="Banner 2">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">🛍️</div>`}<div class="overlay"><span class="chip">Pedidos por WhatsApp</span><div style="margin-top:10px;font-size:18px;font-weight:800;">Arma tu carrito y envía tu pedido</div></div></div></div></div>
 <main>
   <section class="contact">
     <strong>Contacto</strong>
     <div style="font-size:13px;color:#475569;margin-top:6px;">${escapeHtml(addr || 'Sin dirección capturada')}</div>
     <div style="font-size:13px;color:#475569;margin-top:4px;">WhatsApp: ${escapeHtml(wa || 'Sin número')}</div>
   </section>
-  <section class="cats">${categorias.map(cat => `<span class="cat">${escapeHtml(cat)}</span>`).join('')}</section>
-  <section class="sectionhead"><strong>Productos destacados</strong><span>${productos.length} publicados</span></section>
   <section class="grid" id="catalogGrid"></section>
 </main>
 
@@ -1274,7 +1132,6 @@ function renderCatalog(){
     const id = String(btn.dataset.id || '');
     cart[id] = (cart[id] || 0) + 1;
     renderCart();
-    $drawer.classList.add('open');
   }));
 }
 function renderCart(){
