@@ -600,14 +600,24 @@ if (elBtnWebClearAll){
 
 if (elBtnDescargarWeb){
   elBtnDescargarWeb.addEventListener('click', () => {
-    const html = generarHtmlWeb();
-    const blob = new Blob([html], { type:'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'farmacia_web_simple.html';
-    a.click();
-    URL.revokeObjectURL(url);
+    try{
+      const html = generarHtmlWeb();
+      const blob = new Blob([html], { type:'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pagina_farmacia_dp.html';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 300);
+    }catch(err){
+      console.error('Error al descargar HTML web:', err);
+      alert('No se pudo descargar el HTML. Revisa la consola o vuelve a intentar.');
+    }
   });
 }
 
