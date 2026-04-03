@@ -513,28 +513,207 @@ function generarHtmlWeb(){
   const wa = (state.config.webWhatsapp || '').replace(/\D/g,'');
   const cta = state.config.webCTA || 'Pedir por WhatsApp';
   const addr = state.config.webAddress || state.config.direccion || '';
-  const productos = getSelectedWebProducts().map(p => ({
+  const logo = state.config.logoDataUrl || '';
+  const banner1 = state.config.webBanner1 || '';
+  const banner2 = state.config.webBanner2 || '';
+  const productos = getSelectedWebProducts(99).map(p => ({
+    id: getWebProductId(p),
     nombre: p.nombre || 'Producto',
-    precio: money(p.precioVenta || p.precio || 0),
-    stock: Number(p.stockPiso ?? p.stock ?? 0)
+    precioNum: Number(p.precio || p.precioVenta || 0) || 0,
+    precio: money(p.precio || p.precioVenta || 0),
+    stock: Number(p.stockPiso ?? p.stock ?? 0),
+    categoria: p.categoria || 'Sin categoría',
+    imagen: getWebProductImage(p)
   }));
-  const cards = productos.map(p => `<article class="item"><h3>${escapeHtml(p.nombre)}</h3><p>${escapeHtml(p.precio)}</p><small>Stock: ${p.stock}</small></article>`).join('');
   const categorias = Array.from(new Set(productos.map(p => p.categoria || 'General'))).slice(0, 8);
+
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
-<style>body{font-family:Arial,sans-serif;margin:0;background:#f8fbff;color:#0f172a}header{background:linear-gradient(135deg,#1d4ed8,#60a5fa);color:#fff;padding:48px 20px}main{max-width:1100px;margin:0 auto;padding:24px 20px}a.btn{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border-radius:999px;margin-top:14px}.panel{background:#fff;border:1px solid #dbeafe;border-radius:18px;padding:18px;box-shadow:0 10px 25px rgba(15,23,42,.06)}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:16px}.item{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:14px}.item h3{margin:0 0 8px;font-size:16px}.muted{color:#475569}.footer{padding:24px 20px;color:#64748b;text-align:center}</style>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f8fbff;color:#0f172a}
+.top{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #e5e7eb;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:48px;height:48px;border-radius:14px;background:#eff6ff;border:1px solid #dbeafe;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#2563eb;font-weight:800}
+.logo img{width:100%;height:100%;object-fit:contain;padding:6px;background:#fff}
+.cartbtn{border:none;border-radius:999px;padding:10px 14px;background:#0f172a;color:#fff;font-weight:700;cursor:pointer}
+.count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:999px;background:#fff;color:#0f172a;font-size:12px;margin-left:8px;padding:0 6px}
+.hero{background:linear-gradient(135deg,#1d4ed8,#60a5fa);color:#fff;padding:28px 16px}
+.bannerwrap{padding:14px 16px 0}
+.bannermain{display:grid;grid-template-columns:1.45fr .95fr;gap:12px}
+.bannercard{border-radius:20px;overflow:hidden;background:#dbeafe;min-height:150px;position:relative;display:flex;align-items:flex-end;justify-content:flex-start;color:#fff}
+.bannercard img{width:100%;height:100%;object-fit:cover;display:block}
+.overlay{position:absolute;inset:auto 0 0 0;padding:18px 16px;background:linear-gradient(180deg,rgba(15,23,42,0) 0%, rgba(15,23,42,.65) 100%)}
+.chip{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.18);font-size:12px;font-weight:700}
+main{max-width:1180px;margin:0 auto;padding:0 0 22px}
+.contact{margin:14px 16px 0;padding:14px;background:#fff;border:1px solid #e5e7eb;border-radius:18px}
+.cats{display:flex;gap:8px;flex-wrap:wrap;padding:14px 16px 0}
+.cat{border:1px solid #dbeafe;background:#fff;color:#1d4ed8;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700}
+.sectionhead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 16px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:16px}
+.item{border:1px solid #e5e7eb;border-radius:18px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.media{height:160px;background:#eff6ff;display:flex;align-items:center;justify-content:center;color:#2563eb;font-size:34px}
+.media img{width:100%;height:100%;object-fit:cover;display:block}
+.body{padding:12px}
+.title{font-size:15px;font-weight:700}
+.meta{font-size:12px;color:#64748b;margin-top:4px}
+.price{font-size:17px;font-weight:800;color:#1d4ed8;margin-top:8px}
+.note{font-size:11px;color:#2563eb;font-weight:700;margin-top:6px}
+.actions{display:flex;gap:8px;margin-top:10px}
+.btn{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border:none;border-radius:999px;cursor:pointer;flex:1}
+.btn.secondary{background:#eff6ff;color:#1d4ed8}
+.drawer{position:fixed;top:0;right:0;width:min(360px,92%);height:100%;background:#fff;border-left:1px solid #dbeafe;box-shadow:-10px 0 30px rgba(15,23,42,.08);transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column;z-index:20}
+.drawer.open{transform:translateX(0)}
+.dhead{display:flex;justify-content:space-between;align-items:center;padding:14px;border-bottom:1px solid #e5e7eb}
+.close{border:none;background:#eff6ff;color:#1d4ed8;width:34px;height:34px;border-radius:999px;cursor:pointer;font-weight:800}
+.items{flex:1;overflow:auto;padding:12px 14px}
+.line{display:grid;grid-template-columns:1fr auto;gap:10px;padding:10px 0;border-bottom:1px dashed #e5e7eb}
+.line small{display:block;color:#64748b;margin-top:4px}
+.qty{display:flex;gap:6px;align-items:center;margin-top:8px}
+.qty button{width:28px;height:28px;border:none;border-radius:999px;background:#eff6ff;color:#1d4ed8;cursor:pointer;font-weight:800}
+.footer{padding:14px;border-top:1px solid #e5e7eb}
+.total{display:flex;justify-content:space-between;align-items:center;font-weight:800;margin-bottom:12px}
+.empty{padding:20px 8px;color:#64748b;text-align:center;font-size:13px}
+@media(max-width:720px){.grid{grid-template-columns:1fr}.bannermain{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-<header><h1>${escapeHtml(title)}</h1><p>${escapeHtml(desc)}</p><a class="btn" href="${waLink}">${escapeHtml(cta)}</a></header>
-<main><section class="panel"><h2>Contacto</h2><p class="muted">${escapeHtml(addr || 'Dirección pendiente')}</p><p class="muted">WhatsApp: ${escapeHtml(wa || 'Pendiente')}</p></section><section style="margin-top:18px;"><h2>Productos publicados</h2><div class="grid">${cards || '<p class="muted">No has seleccionado productos para publicar.</p>'}</div></section></main>
-<div class="footer">Sitio generado desde Farmacia DP</div>
+<div class="top">
+  <div class="brand">
+    <div class="logo">${logo ? `<img src="${logo}" alt="Logo">` : 'Rx'}</div>
+    <div><strong style="display:block;">${escapeHtml(title)}</strong><small style="color:#64748b">Catálogo web simple</small></div>
+  </div>
+  <button class="cartbtn" id="cartBtn">🛒 Carrito <span class="count" id="cartCount">0</span></button>
+</div>
+<div class="hero">
+  <h1 style="margin:0">${escapeHtml(title)}</h1>
+  <p style="margin:8px 0 0">${escapeHtml(desc)}</p>
+</div>
+<div class="bannerwrap">
+  <div class="bannermain">
+    <div class="bannercard">${banner1 ? `<img src="${banner1}" alt="Banner 1">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">💊</div>`}<div class="overlay"><span class="chip">Promociones destacadas</span><div style="margin-top:10px;font-size:22px;font-weight:800;">Salud y ahorro cerca de ti</div></div></div>
+    <div class="bannercard">${banner2 ? `<img src="${banner2}" alt="Banner 2">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">🛍️</div>`}<div class="overlay"><span class="chip">Pedidos por WhatsApp</span><div style="margin-top:10px;font-size:18px;font-weight:800;">Arma tu carrito y envía tu pedido</div></div></div>
+  </div>
+</div>
+<main>
+  <section class="contact">
+    <strong>Contacto</strong>
+    <div style="font-size:13px;color:#475569;margin-top:6px;">${escapeHtml(addr || 'Sin dirección capturada')}</div>
+    <div style="font-size:13px;color:#475569;margin-top:4px;">WhatsApp: ${escapeHtml(wa || 'Sin número')}</div>
+  </section>
+  <section class="cats">${categorias.map(cat => `<span class="cat">${escapeHtml(cat)}</span>`).join('')}</section>
+  <section class="sectionhead"><strong>Productos destacados</strong><span>${productos.length} publicados</span></section>
+  <section class="grid" id="catalogGrid"></section>
+</main>
+
+<aside class="drawer" id="drawer">
+  <div class="dhead">
+    <strong>Tu carrito</strong>
+    <button class="close" id="closeBtn" type="button">×</button>
+  </div>
+  <div class="items" id="cartItems"></div>
+  <div class="footer">
+    <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
+    <button class="btn" id="sendBtn" type="button">${escapeHtml(cta)}</button>
+  </div>
+</aside>
+
+<script>
+const productos = ${JSON.stringify(productos)};
+const wa = ${JSON.stringify(wa)};
+const title = ${JSON.stringify(title)};
+const cart = {};
+
+const fmt = v => '$' + (Number(v)||0).toFixed(2);
+const $grid = document.getElementById('catalogGrid');
+const $drawer = document.getElementById('drawer');
+const $cartBtn = document.getElementById('cartBtn');
+const $closeBtn = document.getElementById('closeBtn');
+const $cartItems = document.getElementById('cartItems');
+const $cartTotal = document.getElementById('cartTotal');
+const $cartCount = document.getElementById('cartCount');
+const $sendBtn = document.getElementById('sendBtn');
+
+function esc(s=''){return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function renderCatalog(){
+  $grid.innerHTML = productos.length ? productos.map(p => `<article class="item">
+    <div class="media">${p.imagen ? `<img src="${p.imagen}" alt="${esc(p.nombre)}">` : '💊'}</div>
+    <div class="body">
+      <div class="title">${esc(p.nombre)}</div>
+      <div class="meta">${esc(p.categoria)} · Stock: ${p.stock}</div>
+      <div class="price">${esc(p.precio)}</div>
+      <div class="note">Publicado manualmente</div>
+      <div class="actions"><button class="btn addBtn" type="button" data-id="${esc(p.id)}">Agregar</button><button class="btn secondary" type="button">Ver</button></div>
+    </div>
+  </article>`).join('') : '<div class="empty">No hay productos publicados.</div>';
+
+  document.querySelectorAll('.addBtn').forEach(btn => btn.addEventListener('click', () => {
+    const id = String(btn.dataset.id || '');
+    cart[id] = (cart[id] || 0) + 1;
+    renderCart();
+    $drawer.classList.add('open');
+  }));
+}
+function renderCart(){
+  const items = Object.entries(cart).map(([id, qty]) => {
+    const prod = productos.find(p => p.id === id);
+    if(!prod || qty <= 0) return null;
+    return { ...prod, qty };
+  }).filter(Boolean);
+
+  const count = items.reduce((a,i)=>a+i.qty,0);
+  const total = items.reduce((a,i)=>a+(i.qty*i.precioNum),0);
+
+  $cartCount.textContent = count;
+  $cartTotal.textContent = fmt(total);
+
+  $cartItems.innerHTML = items.length ? items.map(i => `<div class="line">
+    <div>
+      <strong>${esc(i.nombre)}</strong>
+      <small>${fmt(i.precioNum)} c/u</small>
+      <div class="qty">
+        <button type="button" class="minusBtn" data-id="${esc(i.id)}">−</button>
+        <span>${i.qty}</span>
+        <button type="button" class="plusBtn" data-id="${esc(i.id)}">+</button>
+      </div>
+    </div>
+    <div><strong>${fmt(i.qty*i.precioNum)}</strong></div>
+  </div>`).join('') : '<div class="empty">Tu carrito está vacío.</div>';
+
+  document.querySelectorAll('.minusBtn').forEach(btn => btn.addEventListener('click', () => {
+    const id = String(btn.dataset.id || '');
+    cart[id] = Math.max((cart[id] || 0) - 1, 0);
+    if(cart[id] <= 0) delete cart[id];
+    renderCart();
+    $drawer.classList.add('open');
+  }));
+  document.querySelectorAll('.plusBtn').forEach(btn => btn.addEventListener('click', () => {
+    const id = String(btn.dataset.id || '');
+    cart[id] = (cart[id] || 0) + 1;
+    renderCart();
+    $drawer.classList.add('open');
+  }));
+
+  $sendBtn.onclick = () => {
+    if(!wa){ alert('No hay número de WhatsApp configurado.'); return; }
+    if(!items.length){ alert('Agrega productos al carrito.'); return; }
+    const lines = items.map(i => '• ' + i.nombre + ' x' + i.qty + ' = ' + fmt(i.qty*i.precioNum));
+    const msg = encodeURIComponent(title + '\nPedido desde la web:\n\n' + lines.join('\n') + '\n\nTotal: ' + fmt(total));
+    window.open('https://wa.me/' + wa + '?text=' + msg, '_blank');
+  };
+}
+$cartBtn.onclick = () => $drawer.classList.add('open');
+$closeBtn.onclick = () => $drawer.classList.remove('open');
+renderCatalog();
+renderCart();
+</script>
 </body>
 </html>`;
 }
+
 
 if (elBtnGuardarWeb){
   elBtnGuardarWeb.addEventListener('click', () => {
