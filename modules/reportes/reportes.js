@@ -245,11 +245,19 @@ const elWebProductSearch = document.getElementById('webProductSearch');
 const elWebSelectedInfo = document.getElementById('webSelectedInfo');
 const elBtnWebSelectAll = document.getElementById('btnWebSelectAll');
 const elBtnWebClearAll = document.getElementById('btnWebClearAll');
+const elWebBanner1File = document.getElementById('webBanner1File');
+const elWebBanner2File = document.getElementById('webBanner2File');
+const elWebBanner1Preview = document.getElementById('webBanner1Preview');
+const elWebBanner2Preview = document.getElementById('webBanner2Preview');
+const elBtnRemoveBanner1 = document.getElementById('btnRemoveBanner1');
+const elBtnRemoveBanner2 = document.getElementById('btnRemoveBanner2');
 
 
 function renderLogoPreview(){
   if(!elCfgLogoPreview || !elCfgLogoPreviewWrap) return;
   const logo = state.config.logoDataUrl || '';
+  const banner1 = state.config.webBanner1 || '';
+  const banner2 = state.config.webBanner2 || '';
   const ok = typeof logo === 'string' && logo.startsWith('data:image/');
   if(ok){
     elCfgLogoPreview.src = logo;
@@ -511,7 +519,7 @@ function generarHtmlWeb(){
     stock: Number(p.stockPiso ?? p.stock ?? 0)
   }));
   const cards = productos.map(p => `<article class="item"><h3>${escapeHtml(p.nombre)}</h3><p>${escapeHtml(p.precio)}</p><small>Stock: ${p.stock}</small></article>`).join('');
-  const waLink = wa ? `https://wa.me/${wa}` : '#';
+  const categorias = Array.from(new Set(productos.map(p => p.categoria || 'General'))).slice(0, 8);
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -542,6 +550,27 @@ if (elBtnGuardarWeb){
   });
 }
 
+
+
+handleWebBannerUpload(elWebBanner1File, 'webBanner1', elWebBanner1Preview);
+handleWebBannerUpload(elWebBanner2File, 'webBanner2', elWebBanner2Preview);
+
+if (elBtnRemoveBanner1){
+  elBtnRemoveBanner1.addEventListener('click', () => {
+    state.config.webBanner1 = '';
+    saveState();
+    loadWebBannerInputs();
+    renderWebPreview();
+  });
+}
+if (elBtnRemoveBanner2){
+  elBtnRemoveBanner2.addEventListener('click', () => {
+    state.config.webBanner2 = '';
+    saveState();
+    loadWebBannerInputs();
+    renderWebPreview();
+  });
+}
 
 if (elWebProductSearch){
   elWebProductSearch.addEventListener('input', () => {
@@ -581,6 +610,51 @@ if (elBtnDescargarWeb){
     URL.revokeObjectURL(url);
   });
 }
+
+function renderWebBannerPreview(el, src, label='Sin banner'){
+  if(!el) return;
+  const ok = typeof src === 'string' && src.startsWith('data:image/');
+  el.innerHTML = ok ? `<img src="${src}" alt="Banner">` : label;
+}
+
+function loadWebBannerInputs(){
+  renderWebBannerPreview(elWebBanner1Preview, state.config.webBanner1 || '', 'Sin banner 1');
+  renderWebBannerPreview(elWebBanner2Preview, state.config.webBanner2 || '', 'Sin banner 2');
+}
+
+function handleWebBannerUpload(inputEl, key, previewEl){
+  if(!inputEl) return;
+  inputEl.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    if(!String(file.type || '').startsWith('image/')){
+      alert('Selecciona una imagen válida para el banner.');
+      inputEl.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      if(!result.startsWith('data:image/')){
+        alert('No se pudo leer la imagen del banner.');
+        inputEl.value = '';
+        return;
+      }
+      state.config[key] = result;
+      saveState();
+      renderWebBannerPreview(previewEl, result);
+      renderWebPreview();
+      elWebPreview.querySelector('#webCartDrawer')?.classList.add('open');
+      inputEl.value = '';
+    };
+    reader.onerror = () => {
+      alert('Hubo un problema al cargar el banner.');
+      inputEl.value = '';
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function getWebProductId(prod){
   return String(prod?.id ?? prod?.sku ?? '');
 }
@@ -699,9 +773,12 @@ function renderWebPreview(){
   const addr = state.config.webAddress || state.config.direccion || '';
   const productos = getSelectedWebProducts(50);
   const logo = state.config.logoDataUrl || '';
+  const banner1 = state.config.webBanner1 || '';
+  const banner2 = state.config.webBanner2 || '';
   const cart = getPreviewCartItems();
   const cartCount = cart.reduce((a, item) => a + item.qty, 0);
   const cartTotal = cart.reduce((a, item) => a + item.qty * item.precio, 0);
+  const categorias = Array.from(new Set(productos.map(p => p.categoria || 'General'))).slice(0, 6);
 
   const productosHtml = productos.length
     ? productos.map(p => {
@@ -716,6 +793,7 @@ function renderWebPreview(){
             <div class="web-mini-note">Publicado manualmente</div>
             <div class="web-item-actions">
               <button class="btn btn-primary web-add-cart" type="button" data-id="${escapeHtml(id)}">Agregar</button>
+              <button class="btn web-secondary" type="button">Ver</button>
             </div>
           </div>
         </article>`;
@@ -755,10 +833,38 @@ function renderWebPreview(){
         <p>${escapeHtml(desc)}</p>
       </div>
 
+      <div class="web-preview-banner-wrap">
+        <div class="web-preview-banner-main">
+          <div class="web-banner-card">
+            ${banner1 ? `<img src="${banner1}" alt="Banner 1">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">💊</div>`}
+            <div class="web-banner-overlay">
+              <span class="web-banner-chip">Promociones destacadas</span>
+              <div style="margin-top:10px;font-size:22px;font-weight:800;">Salud y ahorro cerca de ti</div>
+            </div>
+          </div>
+          <div class="web-banner-card">
+            ${banner2 ? `<img src="${banner2}" alt="Banner 2">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">🛍️</div>`}
+            <div class="web-banner-overlay">
+              <span class="web-banner-chip">Pedidos por WhatsApp</span>
+              <div style="margin-top:10px;font-size:18px;font-weight:800;">Arma tu carrito y envía tu pedido</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="web-preview-categories">
+        ${categorias.map(cat => `<span class="web-cat-pill">${escapeHtml(cat)}</span>`).join('')}
+      </div>
+
       <div class="web-preview-contact">
         <strong>Contacto</strong>
         <div style="font-size:13px;color:#475569;margin-top:6px;">${escapeHtml(addr || 'Sin dirección capturada')}</div>
         <div style="font-size:13px;color:#475569;margin-top:4px;">WhatsApp: ${escapeHtml(wa || 'Sin número')}</div>
+      </div>
+
+      <div class="web-preview-section-head">
+        <strong>Productos destacados</strong>
+        <span>${productos.length} publicados</span>
       </div>
 
       <div class="web-preview-products">${productosHtml}</div>
@@ -836,6 +942,7 @@ function loadWebForm(){
   elWebWhatsapp.value = state.config.webWhatsapp || '';
   elWebAddress.value = state.config.webAddress || state.config.direccion || '';
   elWebCTA.value = state.config.webCTA || 'Pedir por WhatsApp';
+  loadWebBannerInputs();
   renderWebProductsPicker();
   renderWebPreview();
 }
@@ -865,7 +972,7 @@ function generarHtmlWeb(){
     categoria: p.categoria || 'Sin categoría',
     imagen: getWebProductImage(p)
   }));
-  const waLink = wa ? `https://wa.me/${wa}` : '#';
+  const categorias = Array.from(new Set(productos.map(p => p.categoria || 'General'))).slice(0, 8);
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -921,12 +1028,15 @@ main{max-width:1180px;margin:0 auto;padding:0 0 22px}
   <h1 style="margin:0">${escapeHtml(title)}</h1>
   <p style="margin:8px 0 0">${escapeHtml(desc)}</p>
 </div>
+<div class="bannerwrap"><div class="bannermain"><div class="bannercard">${banner1 ? `<img src="${banner1}" alt="Banner 1">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">💊</div>`}<div class="overlay"><span class="chip">Promociones destacadas</span><div style="margin-top:10px;font-size:22px;font-weight:800;">Salud y ahorro cerca de ti</div></div></div><div class="bannercard">${banner2 ? `<img src="${banner2}" alt="Banner 2">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;">🛍️</div>`}<div class="overlay"><span class="chip">Pedidos por WhatsApp</span><div style="margin-top:10px;font-size:18px;font-weight:800;">Arma tu carrito y envía tu pedido</div></div></div></div></div>
 <main>
   <section class="contact">
     <strong>Contacto</strong>
     <div style="font-size:13px;color:#475569;margin-top:6px;">${escapeHtml(addr || 'Sin dirección capturada')}</div>
     <div style="font-size:13px;color:#475569;margin-top:4px;">WhatsApp: ${escapeHtml(wa || 'Sin número')}</div>
   </section>
+  <section class="cats">${categorias.map(cat => `<span class="cat">${escapeHtml(cat)}</span>`).join('')}</section>
+  <section class="sectionhead"><strong>Productos destacados</strong><span>${productos.length} publicados</span></section>
   <section class="grid" id="catalogGrid"></section>
 </main>
 
@@ -975,6 +1085,7 @@ function renderCatalog(){
     const id = String(btn.dataset.id || '');
     cart[id] = (cart[id] || 0) + 1;
     renderCart();
+    $drawer.classList.add('open');
   }));
 }
 function renderCart(){

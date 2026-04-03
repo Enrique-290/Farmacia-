@@ -42,6 +42,8 @@ function loadState(){
   if(!state.config || typeof state.config !== 'object') state.config = {};
   if(typeof state.config.logoDataUrl !== 'string') state.config.logoDataUrl = '';
   if(!Array.isArray(state.config.webSelectedProductIds)) state.config.webSelectedProductIds = [];
+  if(typeof state.config.webBanner1 !== 'string') state.config.webBanner1 = '';
+  if(typeof state.config.webBanner2 !== 'string') state.config.webBanner2 = '';
 }
 function saveState(){
   try{
